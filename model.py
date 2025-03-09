@@ -5,7 +5,7 @@ import ta  # Technical indicators library
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 import joblib
-from data_fetch import get_stock_data
+from data_fetch import get_stock_data, get_earnings_data, get_news_sentiment, get_interest_rate, get_eps
 
 # Ensure models folder exists
 MODEL_DIR = "models"
@@ -27,7 +27,53 @@ def add_technical_indicators(df):
     df['MACD_Signal'] = ta.trend.macd_signal(df['Close'])
 
     # Fill NaN values created by indicators
-    df.fillna(method='bfill', inplace=True)
+    df.bfill(inplace=True)
+
+    return df
+
+def add_fundamental_indicators(df, ticker):
+    """Add fundamental indicators to the dataframe."""
+    
+    # Check if df is empty before proceeding
+    if df.empty:
+        print(f"Warning: No stock data found for {ticker}. Returning empty DataFrame.")
+        return df
+    
+    # Example fundamental data: Earnings Per Share (EPS)
+    eps = get_eps(ticker)  # Implement get_eps to fetch the EPS from Yahoo Finance or another API
+    
+    # Check if EPS data is fetched successfully
+    if eps is None:
+        print(f"Warning: Could not fetch EPS data for {ticker}. Setting to NaN.")
+        eps = np.nan  # Set to NaN if EPS data is missing
+    else:
+        df['EPS'] = eps
+    
+    # Fetch the earnings data using get_earnings_data function
+    earnings_data = get_earnings_data(ticker)
+    if earnings_data and 'EPS' in earnings_data:
+        latest_earnings = earnings_data['EPS'] if isinstance(earnings_data['EPS'], (float, int)) else np.nan
+        df['Earnings'] = latest_earnings
+    else:
+        print(f"Warning: Could not fetch earnings data for {ticker}. Setting to NaN.")
+        latest_earnings = np.nan  # Set to NaN if no data is available or 'EPS' is not in the data
+        df['Earnings'] = np.nan  # If earnings data is missing, set to NaN
+
+    # Fetch the news sentiment data using get_news_sentiment function
+    news_sentiment = get_news_sentiment(ticker)
+    if news_sentiment is None:
+        print(f"Warning: Could not fetch news sentiment for {ticker}. Setting to NaN.")
+        df['News_Sentiment'] = np.nan  # If news sentiment is missing, set to NaN
+    else:
+        df['News_Sentiment'] = news_sentiment
+    
+    # Fetch the interest rate data using get_interest_rate function
+    interest_rate = get_interest_rate()
+    if interest_rate is None:
+        print(f"Warning: Could not fetch interest rate data. Setting to NaN.")
+        df['Interest_Rate'] = np.nan  # If interest rate data is missing, set to NaN
+    else:
+        df['Interest_Rate'] = interest_rate
 
     return df
 
@@ -35,13 +81,14 @@ def train_model(ticker, future_steps=1):
     """Train a Linear Regression model to predict stock prices at different time intervals."""
     df = get_stock_data(ticker)
     df = add_technical_indicators(df)
+    df = add_fundamental_indicators(df, ticker)
 
     # Create the target variable (predict `future_steps` ahead)
     df[f'Close_{future_steps}steps'] = df['Close'].shift(-future_steps)
     df.dropna(inplace=True)
 
     # Selecting Features
-    FEATURES = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_10', 'SMA_50', 'EMA_10', 'RSI', 'MACD', 'MACD_Signal']
+    FEATURES = ['Open', 'High', 'Low', 'Close', 'Volume', 'SMA_10', 'SMA_50', 'EMA_10', 'RSI', 'MACD', 'MACD_Signal', 'EPS', 'News_Sentiment', 'Interest_Rate']
     
     X = df[FEATURES]
     y = df[f'Close_{future_steps}steps']
@@ -101,6 +148,7 @@ def predict_price(ticker, future_steps=1):
     model, FEATURES = joblib.load(model_path)  # Load model with feature names
     df = get_stock_data(ticker)
     df = add_technical_indicators(df)
+    df = add_fundamental_indicators(df, ticker)
     
     # Ensure we use only the features the model was trained with
     latest_data = df[FEATURES].iloc[-1].values.reshape(1, -1)
