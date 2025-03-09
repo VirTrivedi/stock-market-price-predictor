@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock Price Predictor</title>
+</head>
+<body>
+    <h1>Stock Price Predictor</h1>
+    
+    <form method="POST">
+        <label for="ticker">Enter Stock Ticker:</label>
+        <input type="text" id="ticker" name="ticker" required>
+        
+        <label for="future_steps">Prediction Interval:</label>
+        <select id="future_steps" name="future_steps">
+            <option value="1">1 Day</option>
+            <option value="2">2 Days</option>
+            <option value="5">5 Days</option>
+            <option value="10">10 Days</option>
+        </select>
+
+        <button type="submit">Predict</button>
+    </form>
+
+    {% if predicted_price %}
+        <h2>Predicted Price for {{ ticker }} ({{ future_steps }} days ahead): ${{ predicted_price }}</h2>
+        <p>The current price of the stock is ${{ current_price }}.</p>
+        <p>Predicted change: ${{ predicted_price_change }}</p>
+        <h3>Explanation:</h3>
+        <p>{{ explanation }}</p>
+    {% endif %}
+</body>
+</html>
